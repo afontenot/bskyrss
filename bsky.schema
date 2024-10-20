@@ -1,0 +1,28 @@
+BEGIN;
+CREATE TABLE IF NOT EXISTS "handles" (
+        "handle"        TEXT NOT NULL UNIQUE,
+        "did"   TEXT,
+        "updated"       TEXT,
+        PRIMARY KEY("handle")
+);
+CREATE TABLE IF NOT EXISTS "posts" (
+        "cid"   TEXT NOT NULL UNIQUE,
+        "did"   TEXT NOT NULL,
+        "url"   TEXT NOT NULL,
+        "html"  TEXT NOT NULL,
+        "date"  TEXT NOT NULL,
+        "handle"        TEXT NOT NULL,
+        "name"  TEXT NOT NULL,
+        PRIMARY KEY("cid")
+);
+CREATE TABLE IF NOT EXISTS "profiles" (
+        "did"   TEXT NOT NULL UNIQUE,
+        "handle"        TEXT,
+        "name"  TEXT,
+        "avatar"        TEXT,
+        "description"   TEXT,
+        "updated"       TEXT,
+        "fetched"       TEXT,
+        PRIMARY KEY("did")
+);
+COMMIT;

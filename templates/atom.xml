@@ -1,0 +1,21 @@
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <id>{{ profile["did"] }}</id>
+  <link>{{ profile["url"] }} rel="self"</link>
+  <title>{{ profile["name"] }}</title>
+  <updated>{{ profile["updated"] }}</updated>
+  <author>
+    <name>{{ profile["name"] }}</name>
+  </author>
+  <logo>{{ profile["avatar"] }}</logo>
+  <subtitle>{{ profile["description"] }}</subtitle>{% for post in posts %}
+  <entry>
+    <id>{{ post["cid"] }}</id>
+    <link href="{{ post["url"]}}" rel="alternate"/>
+    <title>Post by {{ post["author"] }}</title>
+    <updated>{{ post["date"] }}</updated>
+    <author>
+      <name>{{ post["author"] }}</name>
+    </author>
+    <content type="html">{{ post["html"] }}</content>
+  </entry>{% endfor %}
+</feed>
