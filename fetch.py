@@ -193,6 +193,7 @@ def actorfeed(actor: str):
 
     # we know about this actor already
     if res:
+        # FIXME: URL?
         profile = {
             "did": res[0],
             "handle": res[1],
@@ -253,7 +254,7 @@ def actorfeed(actor: str):
     curs.execute("UPDATE profiles SET fetched = ? WHERE did = ?", (now, actor))
 
     for cid, post in posts.items():
-        # FIXME: consider updating edited posts
+        # FIXME: look into updating edited posts
         postdata = curs.execute("SELECT EXISTS(SELECT 1 FROM posts WHERE cid = ?)", (cid,))
         postdata = postdata.fetchone()
         if not postdata[0]:
