@@ -1,3 +1,5 @@
+# Copyright 2024: A. Fontenot (https://github.com/afontenot)
+# SPDX-License-Identifier: MPL-2.0
 import re
 import sqlite3
 from datetime import datetime, timezone
