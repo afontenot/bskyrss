@@ -15,10 +15,15 @@ CACHE_POSTS_SECS = 3600
 CACHE_DIR = "cache"
 DATABASE = "bsky.db"
 
+# anti-feature?
+SKIP_AUTH_REQ_POSTS = False
+
 # constants
 PROFILE_URL = "https://bsky.app/profile"
 BSKY_PUBLIC_API = "https://public.api.bsky.app/xrpc"
-VALID_HANDLE_REGEX = re.compile(r"^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
+VALID_HANDLE_REGEX = re.compile(
+    r"^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$"
+)
 
 app = Flask(__name__)
 iso = datetime.fromisoformat
@@ -220,12 +225,24 @@ def actorfeed(actor: str):
                 pass
 
     # never fetched before, verify actor and fetch posts
-    if not res or (now - iso(profile["updated"])).total_seconds() > REFETCH_PROFILES_SECS:
+    if (
+        not res
+        or (now - iso(profile["updated"])).total_seconds() > REFETCH_PROFILES_SECS
+    ):
         try:
             print("fetching profile for", actor)
             profile = client.get_profile(actor)
         except requests.HTTPError:
             return
+
+        # option: don't allow fetching "login-required" profiles
+        if SKIP_AUTH_REQ_POSTS and "labels" in profile:
+            for label in profile["labels"]:
+                if (
+                    label.get("src") == profile["did"]
+                    and label.get("val") == "!no-unauthenticated"
+                ):
+                    return
 
         author = profile["displayName"]
         avatar = profile["avatar"]
@@ -257,7 +274,9 @@ def actorfeed(actor: str):
 
     for cid, post in posts.items():
         # FIXME: look into updating edited posts
-        postdata = curs.execute("SELECT EXISTS(SELECT 1 FROM posts WHERE cid = ?)", (cid,))
+        postdata = curs.execute(
+            "SELECT EXISTS(SELECT 1 FROM posts WHERE cid = ?)", (cid,)
+        )
         postdata = postdata.fetchone()
         if not postdata[0]:
             html = post_to_html(post)
@@ -314,7 +333,7 @@ def handlefeed(handle):
         if not actor:
             if (now - iso(updated)).total_seconds() < CACHE_NONEXISTENT_HANDLES_SECS:
                 return
-                #raise ValueError("requested cached non-existent handle too soon")
+                # raise ValueError("requested cached non-existent handle too soon")
 
     if not res or (now - iso(updated)).total_seconds() > REFETCH_HANDLES_SECS:
         try:
@@ -325,7 +344,9 @@ def handlefeed(handle):
 
         if actor:
             data = {"actor": actor, "handle": handle, "now": now}
-            curs.execute("INSERT OR REPLACE INTO handles VALUES(:handle, :actor, :now)", data)
+            curs.execute(
+                "INSERT OR REPLACE INTO handles VALUES(:handle, :actor, :now)", data
+            )
             conn.commit()
         else:
             data = {"handle": handle, "now": now}
