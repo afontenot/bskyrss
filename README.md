@@ -39,7 +39,7 @@ improving this software would probably be to directly translate it to
 Go. It was mostly written on a single weekend so that I could follow
 artists who release webcomics via Bluesky.
  * There are undeniably elements of this that are hacked together. I
-didn't read more of the very length set of specifications than I had to.
+didn't read more of the very lengthy set of specifications than I had to.
 If there's stuff that just doesn't work or corner cases you care about,
 please file an issue!
 
