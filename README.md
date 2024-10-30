@@ -32,6 +32,7 @@ The only dependencies (other than Python itself) are Flask and Requests.
 
 ## Limitations
 
+ * Content warnings are not rendered.
  * Posts once downloaded are never updated or deleted.
  * Quoted posts are currently omitted from the feed.
  * The approach to caching is not very efficient. The best approach to
