@@ -34,7 +34,6 @@ The only dependencies (other than Python itself) are Flask and Requests.
 
  * Content warnings are not rendered.
  * Posts once downloaded are never updated or deleted.
- * Quoted posts are currently omitted from the feed.
  * The approach to caching is not very efficient. The best approach to
 improving this software would probably be to directly translate it to
 Go. It was mostly written on a single weekend so that I could follow

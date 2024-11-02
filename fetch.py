@@ -92,7 +92,7 @@ class BskyXrpcClient:
         return r.json()
 
 
-def post_to_html(post):
+def post_to_html(post, recurse=True):
     segments = []
     if "text" in post:
         text = post["text"]
@@ -183,6 +183,20 @@ def post_to_html(post):
                     "description": post["embed"]["external"]["description"],
                 }
             )
+        elif recurse and post["embed"]["$type"] == "app.bsky.embed.record#view":
+            author = post["embed"]["record"]["author"]
+            post_stub = post["embed"]["record"]["uri"].split("/")[-1]
+            segments.append(
+                {
+                    "type": "quotepost",
+                    "handle": author["handle"],
+                    "date": post["embed"]["record"]["value"]["createdAt"],
+                    # FIXME: improve this hardcoded link?
+                    "url": f"{PROFILE_URL}/{author['did']}/post/{post_stub}",
+                    "html": post_to_html(post["embed"]["record"]["value"], False)
+                }
+            )
+
 
     return render_template("post.html", segments=segments)
 
