@@ -183,7 +183,13 @@ def post_to_html(post, recurse=True):
                     "description": post["embed"]["external"]["description"],
                 }
             )
-        elif recurse and post["embed"]["$type"] == "app.bsky.embed.record#view":
+        elif (
+            recurse and
+            post["embed"]["$type"] == "app.bsky.embed.record#view" and (
+                "notFound" not in post["embed"]["record"] or
+                not post["embed"]["record"]["notFound"]
+            )
+        ):
             author = post["embed"]["record"]["author"]
             post_stub = post["embed"]["record"]["uri"].split("/")[-1]
             segments.append(
