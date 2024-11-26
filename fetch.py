@@ -200,19 +200,20 @@ def post_to_html(post, recurse=True):
             if post["embed"]["$type"] == "app.bsky.embed.recordWithMedia#view":
                 segments.extend(get_media_embeds(post["embed"]["media"]))
                 post["embed"]["record"] = post["embed"]["record"]["record"]
-            author = post["embed"]["record"]["author"]
-            post_stub = post["embed"]["record"]["uri"].split("/")[-1]
-            segments.append(
-                {
-                    "type": "quotepost",
-                    "handle": author["handle"],
-                    "date": post["embed"]["record"]["value"]["createdAt"],
-                    # FIXME: improve this hardcoded link?
-                    "url": f"{PROFILE_URL}/{author['did']}/post/{post_stub}",
-                    "html": post_to_html(post["embed"]["record"]["value"], False)
-                }
-            )
-
+            # some unhandled embeds, like starter packs, don't have authors
+            if "author" in post["embed"]["record"]:
+                author = post["embed"]["record"]["author"]
+                post_stub = post["embed"]["record"]["uri"].split("/")[-1]
+                segments.append(
+                    {
+                        "type": "quotepost",
+                        "handle": author["handle"],
+                        "date": post["embed"]["record"]["value"]["createdAt"],
+                        # FIXME: improve this hardcoded link?
+                        "url": f"{PROFILE_URL}/{author['did']}/post/{post_stub}",
+                        "html": post_to_html(post["embed"]["record"]["value"], False)
+                    }
+                )
 
     return render_template("post.html", segments=segments)
 
