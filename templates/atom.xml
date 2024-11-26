@@ -1,6 +1,6 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>{{ profile["did"] }}</id>
-  <link rel="self">{{ profile["url"] }}</link>
+  <link rel="alternate" type="text/html">{{ profile["url"] }}</link>
   <title>{{ profile["name"] }}</title>
   <updated>{{ profile["updated"] }}</updated>
   <author>

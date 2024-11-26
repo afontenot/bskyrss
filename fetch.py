@@ -292,6 +292,9 @@ def actorfeed(actor: str):
         )
         conn.commit()
 
+    # add additional metadata not saved in database
+    profile["url"] = f"{PROFILE_URL}/{profile['did']}"
+
     try:
         posts = client.get_posts(actor, last=fetched)
     except requests.HTTPError:
