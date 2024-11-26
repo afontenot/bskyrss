@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 import requests
-from flask import Flask, Response, abort, g, render_template
+from flask import Flask, Response, abort, g, redirect, render_template, request
 
 MAX_POST_FETCH_SECS = 86400
 REFETCH_HANDLES_SECS = 86400 * 7
@@ -421,6 +421,16 @@ def handle(handle):
     return Response(feed, mimetype="application/atom+xml")
 
 
+@app.route("/handle")
+def bare_handle():
+    handle = request.args.get("handle")
+    if not handle:
+        abort(404)
+    if len(handle) > 253 or not VALID_HANDLE_REGEX.match(handle):
+        abort(404)
+    return redirect(f"/handle/{handle}")
+
+
 @app.route("/actor/<actor>")
 def actor(actor):
     if len(actor) != 32 or not actor.startswith("did:plc:") or not actor[8:].isalnum():
@@ -429,3 +439,8 @@ def actor(actor):
     if feed is None:
         abort(404)
     return Response(feed, mimetype="application/atom+xml")
+
+
+@app.route("/")
+def root():
+    return render_template("root.html")
