@@ -108,17 +108,21 @@ def get_media_embeds(embed):
         for image in embed["images"]:
             alt = image["alt"]
             src = image["thumb"]
-            embeds.append({
-                "type": "image",
-                "url": src,
-                "alt": alt,
-            })
+            embeds.append(
+                {
+                    "type": "image",
+                    "url": src,
+                    "alt": alt,
+                }
+            )
     elif embed["$type"] == "app.bsky.embed.video#view":
-        embeds.append({
-            "type": "video",
-            "thumbnail": embed["thumbnail"],
-            "playlist": embed["playlist"],
-        })
+        embeds.append(
+            {
+                "type": "video",
+                "thumbnail": embed["thumbnail"],
+                "playlist": embed["playlist"],
+            }
+        )
     return embeds
 
 
@@ -198,12 +202,14 @@ def post_to_html(post, recurse=True):
                 }
             )
         elif (
-            recurse and (
-                post["embed"]["$type"] == "app.bsky.embed.record#view" or
-                post["embed"]["$type"] == "app.bsky.embed.recordWithMedia#view"
-            ) and (
-                "notFound" not in post["embed"]["record"] or
-                not post["embed"]["record"]["notFound"]
+            recurse
+            and (
+                post["embed"]["$type"] == "app.bsky.embed.record#view"
+                or post["embed"]["$type"] == "app.bsky.embed.recordWithMedia#view"
+            )
+            and (
+                "notFound" not in post["embed"]["record"]
+                or not post["embed"]["record"]["notFound"]
             )
         ):
             # image or video quoted-posted
@@ -221,7 +227,7 @@ def post_to_html(post, recurse=True):
                         "date": post["embed"]["record"]["value"]["createdAt"],
                         # FIXME: improve this hardcoded link?
                         "url": f"{PROFILE_URL}/{author['did']}/post/{post_stub}",
-                        "html": post_to_html(post["embed"]["record"]["value"], False)
+                        "html": post_to_html(post["embed"]["record"]["value"], False),
                     }
                 )
 
