@@ -92,6 +92,26 @@ class BskyXrpcClient:
         return r.json()
 
 
+def get_media_embeds(embed):
+    embeds = []
+    if embed["$type"] == "app.bsky.embed.images#view":
+        for image in embed["images"]:
+            alt = image["alt"]
+            src = image["thumb"]
+            embeds.append({
+                "type": "image",
+                "url": src,
+                "alt": alt,
+            })
+    elif embed["$type"] == "app.bsky.embed.video#view":
+        embeds.append({
+            "type": "video",
+            "thumbnail": embed["thumbnail"],
+            "playlist": embed["playlist"],
+        })
+    return embeds
+
+
 def post_to_html(post, recurse=True):
     segments = []
     if "text" in post:
@@ -154,25 +174,9 @@ def post_to_html(post, recurse=True):
             segments.append({"type": "text", "value": text})
 
     if "embed" in post:
-        if post["embed"]["$type"] == "app.bsky.embed.images#view":
-            for image in post["embed"]["images"]:
-                alt = image["alt"]
-                src = image["thumb"]
-                segments.append(
-                    {
-                        "type": "image",
-                        "url": src,
-                        "alt": alt,
-                    }
-                )
-        elif post["embed"]["$type"] == "app.bsky.embed.video#view":
-            segments.append(
-                {
-                    "type": "video",
-                    "thumbnail": post["embed"]["thumbnail"],
-                    "playlist": post["embed"]["playlist"],
-                }
-            )
+        media_embeds = get_media_embeds(post["embed"])
+        if media_embeds:
+            segments.extend(media_embeds)
         elif post["embed"]["$type"] == "app.bsky.embed.external#view":
             segments.append(
                 {
@@ -184,12 +188,18 @@ def post_to_html(post, recurse=True):
                 }
             )
         elif (
-            recurse and
-            post["embed"]["$type"] == "app.bsky.embed.record#view" and (
+            recurse and (
+                post["embed"]["$type"] == "app.bsky.embed.record#view" or
+                post["embed"]["$type"] == "app.bsky.embed.recordWithMedia#view"
+            ) and (
                 "notFound" not in post["embed"]["record"] or
                 not post["embed"]["record"]["notFound"]
             )
         ):
+            # image or video quoted-posted
+            if post["embed"]["$type"] == "app.bsky.embed.recordWithMedia#view":
+                segments.extend(get_media_embeds(post["embed"]["media"]))
+                post["embed"]["record"] = post["embed"]["record"]["record"]
             author = post["embed"]["record"]["author"]
             post_stub = post["embed"]["record"]["uri"].split("/")[-1]
             segments.append(
