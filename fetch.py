@@ -5,7 +5,17 @@ import sqlite3
 from datetime import datetime, timezone
 
 import requests
-from flask import Flask, Response, abort, g, redirect, render_template, request
+from flask import (
+    Flask,
+    Response,
+    abort,
+    g,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+)
+from werkzeug.exceptions import NotFound
 
 MAX_POST_FETCH_SECS = 86400
 REFETCH_HANDLES_SECS = 86400 * 7
@@ -218,7 +228,7 @@ def post_to_html(post, recurse=True):
     return render_template("post.html", segments=segments)
 
 
-def actorfeed(actor: str):
+def actorfeed(actor: str) -> Response:
     client = get_client()
 
     # check last time actor feed was updated
@@ -231,7 +241,6 @@ def actorfeed(actor: str):
 
     # we know about this actor already
     if res:
-        # FIXME: URL?
         profile = {
             "did": res[0],
             "handle": res[1],
@@ -243,16 +252,16 @@ def actorfeed(actor: str):
         }
 
         # if updated less than an hour ago, return cached file
-        if (
-            profile["fetched"]
-            and (now - iso(profile["fetched"])).total_seconds() < CACHE_POSTS_SECS
-        ):
+        post_age = (now - iso(profile["fetched"])).total_seconds()
+        if profile["fetched"] and post_age < CACHE_POSTS_SECS:
             try:
-                # FIXME: a 302 to NGINX cache would be more efficient
-                with open(f"{CACHE_DIR}/{actor}.atom.xml", "rb") as f:
-                    print("returning cached feed for", actor)
-                    return f.read()
-            except FileNotFoundError:
+                return send_from_directory(
+                    CACHE_DIR,
+                    f"{actor}.atom.xml",
+                    max_age=CACHE_POSTS_SECS - post_age + 1,
+                    mimetype="application/atom+xml",
+                )
+            except NotFound:
                 pass
 
     # never fetched before, verify actor and fetch posts
@@ -264,7 +273,7 @@ def actorfeed(actor: str):
             print("fetching profile for", actor)
             profile = client.get_profile(actor)
         except requests.HTTPError:
-            return
+            abort(404)
 
         # option: don't allow fetching "login-required" profiles
         if SKIP_AUTH_REQ_POSTS and "labels" in profile:
@@ -273,7 +282,7 @@ def actorfeed(actor: str):
                     label.get("src") == profile["did"]
                     and label.get("val") == "!no-unauthenticated"
                 ):
-                    return
+                    abort(404)
 
         author = profile["displayName"]
         avatar = profile["avatar"]
@@ -299,10 +308,10 @@ def actorfeed(actor: str):
     try:
         posts = client.get_posts(actor, last=fetched)
     except requests.HTTPError:
-        return
+        abort(404)
 
     if not posts:
-        return
+        abort(404)
 
     curs.execute("UPDATE profiles SET fetched = ? WHERE did = ?", (now, actor))
 
@@ -352,10 +361,15 @@ def actorfeed(actor: str):
     with open(f"{CACHE_DIR}/{actor}.atom.xml", "wb") as f:
         f.write(ofs)
 
-    return ofs
+    return send_from_directory(
+        CACHE_DIR,
+        f"{actor}.atom.xml",
+        max_age=CACHE_POSTS_SECS + 1,
+        mimetype="application/atom+xml",
+    )
 
 
-def handlefeed(handle):
+def handlefeed(handle) -> Response:
     conn = get_db()
     curs = conn.cursor()
     res = curs.execute("SELECT did,updated FROM handles WHERE handle = ?", (handle,))
@@ -366,7 +380,7 @@ def handlefeed(handle):
         actor, updated = res
         if not actor:
             if (now - iso(updated)).total_seconds() < CACHE_NONEXISTENT_HANDLES_SECS:
-                return
+                abort(404)
                 # raise ValueError("requested cached non-existent handle too soon")
 
     if not res or (now - iso(updated)).total_seconds() > REFETCH_HANDLES_SECS:
@@ -374,7 +388,7 @@ def handlefeed(handle):
             actor = get_client().get_actor(handle)
             updated = now
         except requests.HTTPError:
-            return
+            abort(404)
 
         if actor:
             data = {"actor": actor, "handle": handle, "now": now}
@@ -389,6 +403,7 @@ def handlefeed(handle):
 
     if actor:
         return actorfeed(actor)
+    abort(404)
 
 
 def get_client():
@@ -419,10 +434,7 @@ def close_connection(exception):
 def handle(handle):
     if len(handle) > 253 or not VALID_HANDLE_REGEX.match(handle):
         abort(404)
-    feed = handlefeed(handle)
-    if feed is None:
-        abort(404)
-    return Response(feed, mimetype="application/atom+xml")
+    return handlefeed(handle)
 
 
 @app.route("/handle")
@@ -439,10 +451,7 @@ def bare_handle():
 def actor(actor):
     if len(actor) != 32 or not actor.startswith("did:plc:") or not actor[8:].isalnum():
         abort(404)
-    feed = actorfeed(actor)
-    if feed is None:
-        abort(404)
-    return Response(feed, mimetype="application/atom+xml")
+    return actorfeed(actor)
 
 
 @app.route("/")
