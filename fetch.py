@@ -314,6 +314,7 @@ def actorfeed(actor: str) -> Response:
         abort(404)
 
     curs.execute("UPDATE profiles SET fetched = ? WHERE did = ?", (now, actor))
+    conn.commit()
 
     for cid, post in posts.items():
         # FIXME: look into updating edited posts
