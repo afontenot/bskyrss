@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS "posts" (
         "date"  TEXT NOT NULL,
         "handle"        TEXT NOT NULL,
         "name"  TEXT NOT NULL,
+        "is_self" INTEGER,
+        "is_reply" INTEGER,
+        "has_media" INTEGER,
         PRIMARY KEY("cid")
 );
 CREATE TABLE IF NOT EXISTS "profiles" (
