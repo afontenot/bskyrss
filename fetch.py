@@ -34,6 +34,12 @@ BSKY_PUBLIC_API = "https://public.api.bsky.app/xrpc"
 VALID_HANDLE_REGEX = re.compile(
     r"^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$"
 )
+VALID_FILTERS = (
+    "all",
+    "self",
+    "noreplies",
+    "media"
+)
 
 app = Flask(__name__)
 iso = datetime.fromisoformat
@@ -66,9 +72,17 @@ class BskyXrpcClient:
                     "text": post["record"]["text"],
                     # FIXME: improve this hardcoded link?
                     "url": f"{PROFILE_URL}/{post['author']['did']}/post/{post_stub}",
+                    "is_self": post["author"]["did"] == actor,
+                    "has_media": False,  # default value
+                    "is_reply": "reply" in post["record"],
                 }
                 if "embed" in post:
                     data["embed"] = post["embed"]
+                    if post["embed"].get("$type") in (
+                        "app.bsky.embed.video#view",
+                        "app.bsky.embed.images#view",
+                    ):
+                        data["has_media"] = True
                 if "facets" in post["record"]:
                     data["facets"] = post["record"]["facets"]
                 if data["date"] < now:
@@ -247,6 +261,11 @@ def post_to_html(post, recurse=True):
 
 
 def actorfeed(actor: str) -> Response:
+    post_filter = request.args.get("filter", "all")
+    if post_filter not in VALID_FILTERS:
+        abort(400)
+    filter_str = "" if post_filter == "all" else f".{post_filter}"
+
     client = get_client()
 
     # check last time actor feed was updated
@@ -256,6 +275,7 @@ def actorfeed(actor: str) -> Response:
     res = res.fetchone()
     now = datetime.now(timezone.utc)
     fetched = None
+    cachefail = False
 
     # we know about this actor already
     if res:
@@ -275,12 +295,12 @@ def actorfeed(actor: str) -> Response:
             try:
                 return send_from_directory(
                     CACHE_DIR,
-                    f"{actor}.atom.xml",
+                    f"{actor}{filter_str}.atom.xml",
                     max_age=CACHE_POSTS_SECS - post_age + 1,
                     mimetype="application/atom+xml",
                 )
             except NotFound:
-                pass
+                cachefail = True
 
     # never fetched before, verify actor and fetch posts
     if (
@@ -323,43 +343,62 @@ def actorfeed(actor: str) -> Response:
     # add additional metadata not saved in database
     profile["url"] = f"{PROFILE_URL}/{profile['did']}"
 
-    try:
-        posts = client.get_posts(actor, last=fetched)
-    except requests.HTTPError:
-        abort(404)
+    # do not try to update the posts if the file was not cached
+    # if e.g. filters have changed, cached file can be generated without an update
+    if not cachefail:
+        try:
+            posts = client.get_posts(actor, last=fetched)
+        except requests.HTTPError:
+            abort(404)
 
-    if not posts:
-        abort(404)
+        if not posts:
+            abort(404)
 
-    curs.execute("UPDATE profiles SET fetched = ? WHERE did = ?", (now, actor))
-    conn.commit()
+        curs.execute("UPDATE profiles SET fetched = ? WHERE did = ?", (now, actor))
+        conn.commit()
 
-    for cid, post in posts.items():
-        # FIXME: look into updating edited posts
-        postdata = curs.execute(
-            "SELECT EXISTS(SELECT 1 FROM posts WHERE cid = ?)", (cid,)
-        )
-        postdata = postdata.fetchone()
-        if not postdata[0]:
-            html = post_to_html(post)
-            data = {
-                "cid": cid,
-                "did": actor,
-                "url": post["url"],
-                "html": html,
-                "date": post["date"],
-                "handle": post["author"],
-                "name": post["authorName"],
-            }
-            curs.execute(
-                "INSERT INTO posts VALUES(:cid, :did, :url, :html, :date, :handle, :name)",
-                data,
+        for cid, post in posts.items():
+            # FIXME: look into updating edited posts
+            postdata = curs.execute(
+                "SELECT EXISTS(SELECT 1 FROM posts WHERE cid = ?)", (cid,)
             )
-            conn.commit()
+            postdata = postdata.fetchone()
+            if not postdata[0]:
+                html = post_to_html(post)
+                data = {
+                    "cid": cid,
+                    "did": actor,
+                    "url": post["url"],
+                    "html": html,
+                    "date": post["date"],
+                    "handle": post["author"],
+                    "name": post["authorName"],
+                    "is_self": post["is_self"],
+                    "is_reply": post["is_reply"],
+                    "has_media": post["has_media"],
+                }
+                curs.execute(
+                    "INSERT INTO posts VALUES(:cid, :did, :url, :html, :date, :handle, :name, :is_self, :is_reply, :has_media)",
+                    data,
+                )
+                conn.commit()
 
-    posts = curs.execute(
-        "SELECT * FROM posts WHERE did = ? ORDER BY date DESC LIMIT 100", (actor,)
-    )
+    if post_filter == "self":
+        posts = curs.execute(
+            "SELECT * FROM posts WHERE did = ? AND is_self = 1 ORDER BY date DESC LIMIT 100", (actor,)
+        )
+    elif post_filter == "noreplies":
+        posts = curs.execute(
+            "SELECT * FROM posts WHERE did = ? AND is_self = 1 AND is_reply != 1 ORDER BY date DESC LIMIT 100", (actor,)
+        )
+    elif post_filter == "media":
+        posts = curs.execute(
+            "SELECT * FROM posts WHERE did = ? AND is_self = 1 AND has_media = 1 ORDER BY date DESC LIMIT 100", (actor,)
+        )
+    else:
+        posts = curs.execute(
+            "SELECT * FROM posts WHERE did = ? ORDER BY date DESC LIMIT 100", (actor,)
+        )
     posts = posts.fetchall()
 
     posts_data = []
@@ -377,12 +416,12 @@ def actorfeed(actor: str) -> Response:
 
     ofs = render_template("atom.xml", profile=profile, posts=posts_data).encode("utf-8")
 
-    with open(f"{CACHE_DIR}/{actor}.atom.xml", "wb") as f:
+    with open(f"{CACHE_DIR}/{actor}{filter_str}.atom.xml", "wb") as f:
         f.write(ofs)
 
     return send_from_directory(
         CACHE_DIR,
-        f"{actor}.atom.xml",
+        f"{actor}{filter_str}.atom.xml",
         max_age=CACHE_POSTS_SECS + 1,
         mimetype="application/atom+xml",
     )
@@ -426,7 +465,7 @@ def handlefeed(handle) -> Response:
 
 
 def get_client():
-    client = getattr(g, "_client", None)
+    client: BskyXrpcClient = getattr(g, "_client", None)
     if client is None:
         client = g._client = BskyXrpcClient()
     return client
@@ -463,7 +502,11 @@ def bare_handle():
         abort(404)
     if len(handle) > 253 or not VALID_HANDLE_REGEX.match(handle):
         abort(404)
-    return redirect(f"/handle/{handle}")
+    filter_opt = request.args.get("filter")
+    filter_str = ""
+    if filter_opt in VALID_FILTERS and filter_opt != "all":
+        filter_str = f"?filter={filter_opt}"
+    return redirect(f"/handle/{handle}{filter_str}")
 
 
 @app.route("/actor/<actor>")

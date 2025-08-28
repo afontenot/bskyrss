@@ -11,7 +11,18 @@
     <div>
       <form action="/handle">
         <label for="handle">Enter the handle of a Bluesky user you want to follow:</label>
-        <input type="text" name="handle" id="handle" required />
+        <input type="text" name="handle" id="handle" required autofocus />
+        <div>
+          (Optionally) filter the feed:
+          <input type="radio" id="filter-all" name="filter" value="all" checked />
+          <label for="filter-all">All</label>
+          <input type="radio" id="filter-self" name="filter" value="self" />
+          <label for="filter-self">Self-Posts Only</label>
+          <input type="radio" id="filter-replies" name="filter" value="noreplies" />
+          <label for="filter-replies">No Replies</label>
+          <input type="radio" id="filter-media" name="filter" value="media" />
+          <label for="filter-media">Media</label>
+        </div>
       </form>
     </div>
   </body>
