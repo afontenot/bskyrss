@@ -220,16 +220,28 @@ def post_to_html(post, recurse=True):
             if "author" in post["embed"]["record"]:
                 author = post["embed"]["record"]["author"]
                 post_stub = post["embed"]["record"]["uri"].split("/")[-1]
-                segments.append(
-                    {
-                        "type": "quotepost",
-                        "handle": author["handle"],
-                        "date": post["embed"]["record"]["value"]["createdAt"],
-                        # FIXME: improve this hardcoded link?
-                        "url": f"{PROFILE_URL}/{author['did']}/post/{post_stub}",
-                        "html": post_to_html(post["embed"]["record"]["value"], False),
-                    }
-                )
+                # Bluesky API now absurdly hides data in the API when users block each other
+                if post["embed"]["record"].get("blocked") and "handle" not in author:
+                    segments.append(
+                        {
+                            "type": "quotepost",
+                            "handle": f"{author['did']} [blocked]",
+                            # FIXME: improve this hardcoded link?
+                            "url": f"{PROFILE_URL}/{author['did']}/post/{post_stub}",
+                            "html": "",
+                        }
+                    )
+                else:
+                    segments.append(
+                        {
+                            "type": "quotepost",
+                            "handle": author["handle"],
+                            "date": post["embed"]["record"]["value"]["createdAt"],
+                            # FIXME: improve this hardcoded link?
+                            "url": f"{PROFILE_URL}/{author['did']}/post/{post_stub}",
+                            "html": post_to_html(post["embed"]["record"]["value"], False),
+                        }
+                    )
 
     return render_template("post.html", segments=segments)
 
